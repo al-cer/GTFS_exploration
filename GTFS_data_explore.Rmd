@@ -1,0 +1,115 @@
+---
+title: "GTFS_exploration"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "..")
+```
+
+## GTFS Exploration
+This file explores GTFS data as well as the available functions in the tidytransit package
+
+Load the necessary packages and set the ggplot theme.
+```{r message = FALSE, warning=FALSE}
+library(tidytransit)
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(dplyr)
+```
+
+Specify the path to the gfts files, these should be in a zipped folder. 
+Load the files from Trillium Transit.
+```{r message=FALSE}
+fpath1 <- "https://data.trilliumtransit.com/gtfs/humboldtcounty-ca-us/humboldtcounty-ca-us.zip"
+fpath2 <- "https://data.trilliumtransit.com/gtfs/delnorte-ca-us/delnorte-ca-us.zip"
+fpath3 <- "https://data.trilliumtransit.com/gtfs/trinity-ca-us/trinity-ca-us.zip"
+
+# Save each path to the corresponding Transit Agency
+hta <- read_gtfs(fpath1, local = FALSE, quiet = TRUE, geometry = TRUE, frequency = TRUE) # Humboldt Transit Authority
+rct <- read_gtfs(fpath2, local = FALSE, quiet = TRUE, geometry = TRUE, frequency = TRUE) # Redwood Coast Transit
+tri <- read_gtfs(fpath3, local = FALSE, quiet = TRUE, geometry = TRUE, frequency = TRUE) # Trinity Transit
+```
+
+```{r}
+names(hta)
+```
+
+```{r}
+gtfs_as_sf(hta, quiet = TRUE)
+```
+
+```{r}
+shapes_hta <- hta$shapes
+shapes_rct <- rct$shapes
+shapes_tri <- tri$shapes
+```
+
+
+```{r}
+# plot the map with a line for each group of shapes (route) + stops
+ggplot(hta$stops) + geom_point(aes(x=stop_lon, y=stop_lat), size = .7) + geom_path(data = shapes_hta, aes(shape_pt_lon, shape_pt_lat, group = shape_id), size = .2,  alpha = .2, color='blue') + coord_equal()
+
+ggplot(rct$stops) + geom_point(aes(x=stop_lon, y=stop_lat), size = .7) + geom_path(data = shapes_rct, aes(shape_pt_lon, shape_pt_lat, group = shape_id), size = .2,  alpha = .2, color='blue') + coord_equal(ratio = .35)
+
+ggplot(tri$stops) + geom_point(aes(x=stop_lon, y=stop_lat), size = .7) + geom_path(data = shapes_tri, aes(shape_pt_lon, shape_pt_lat, group = shape_id), size = .2,  alpha = .2, color='blue') + coord_equal()
+```
+
+Plot the routes by shape 
+```{r}
+ggplot(shapes_hta) + geom_path(aes(shape_pt_lon, shape_pt_lat, group =shape_id), size = 0.5, alpha =0.5) + coord_equal() + labs(x = "Longitude", y = "Latitude") + theme_bw(base_size = 13) + labs(subtitle = "HTA")
+ggplot(shapes_rct) + geom_path(aes(shape_pt_lon, shape_pt_lat, group =shape_id), size = 0.5, alpha =0.5) + coord_equal(.35) + labs(x = "Longitude", y = "Latitude") + theme_bw(base_size = 13) + labs(subtitle = "RCT")
+ggplot(shapes_tri) + geom_path(aes(shape_pt_lon, shape_pt_lat, group =shape_id), size = 0.5, alpha =0.5) + coord_equal() + labs(x = "Longitude", y = "Latitude") + theme_bw(base_size = 13) + labs(subtitle = "Trinity")
+
+```
+
+Plot route by route_id
+```{r}
+ggplot(hta$.$routes_sf) + geom_sf(aes(color = route_id), show.legend = "line") + theme(axis.text = element_blank(), axis.ticks = element_blank())
+ggplot(rct$.$routes_sf) + geom_sf(aes(color = route_id), show.legend = "line") + theme(axis.text = element_blank(), axis.ticks = element_blank())
+ggplot(tri$.$routes_sf) + geom_sf(aes(color = route_id), show.legend = "line") + theme(axis.text = element_blank(), axis.ticks = element_blank())
+```
+
+Plot stops by zone_id
+```{r}
+ggplot(hta$.$stops_sf) + geom_sf(aes(color = zone_id), show.legend = "line") + theme(axis.text = element_blank(), axis.ticks = element_blank())
+ggplot(rct$.$stops_sf) + geom_sf(aes(color = zone_id), show.legend = "line") + theme(axis.text = element_blank(), axis.ticks = element_blank())
+ggplot(tri$.$stops_sf) + geom_sf(aes(color = zone_id), show.legend = "line") + theme(axis.text = element_blank(), axis.ticks = element_blank())
+```
+
+
+```{r message=FALSE}
+hta_r <- filter(hta$routes)
+hta_r <- inner_join(hta_r, hta$trips) %>%
+  left_join(hta$stop_times) %>%
+  left_join(hta$stops) %>%
+  left_join(hta$calendar) 
+hta_r <- mutate(hta_r, miles_traveled = shape_dist_traveled * 0.000621371192)
+ggplot(hta_r, aes(stop_sequence, miles_traveled, color = block_id, group = trip_id)) + geom_line() 
+```
+
+
+```{r message=FALSE}
+rct_r <- filter(rct$routes)
+rct_r <- inner_join(rct_r, rct$trips) %>%
+  left_join(rct$stop_times) %>%
+  left_join(rct$stops) %>%
+  left_join(rct$calendar) 
+rct_r <- mutate(rct_r, miles_traveled = shape_dist_traveled * 0.000621371192)
+ggplot(rct_r, aes(stop_sequence, miles_traveled, color = block_id, group = trip_id)) + geom_line() 
+```
+
+```{r message=FALSE}
+tri_r <- filter(tri$routes)
+tri_r <- inner_join(tri_r, tri$trips) %>%
+  left_join(tri$stop_times) %>%
+  left_join(tri$stops) %>%
+  left_join(tri$calendar) 
+tri_r <- mutate(tri_r, miles_traveled = shape_dist_traveled * 0.000621371192)
+ggplot(tri_r, aes(stop_sequence, miles_traveled, color = shape_id, group = trip_id)) + geom_line() 
+```
+
+
+
